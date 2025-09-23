@@ -9,6 +9,9 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 using System.Windows.Forms.DataVisualization.Charting;
 using System.Drawing.Imaging;
+using WebCamLib;          // Device, DeviceManager
+using System.Threading;   // for short wait while clipboard fills (used below)
+
 
 namespace ImageProcessing
 {
@@ -17,6 +20,10 @@ namespace ImageProcessing
         private Bitmap originalBitmap = null;
         private Bitmap processedBitmap = null;
         private Bitmap imageB, imageA, resultImage;
+        // webcam fields
+        private Device[] webcamDevices = new Device[0];
+        private Device currentDevice = null;
+
 
         public DigitalImagerv1()
         {
@@ -26,6 +33,7 @@ namespace ImageProcessing
 
         private void loadImageToolStripMenuItem_Click(object sender, EventArgs e)
         {
+
             openFileDialog1.Filter = "Image Files|*.bmp;*.jpg;*.jpeg;*.png;*.gif";
             if (openFileDialog1.ShowDialog() == DialogResult.OK)
             {
@@ -93,9 +101,9 @@ namespace ImageProcessing
         {
             if (originalBitmap == null) return;
 
-           ApplyPixelOperation((c) =>
+            ApplyPixelOperation((c) =>
             {
-                int gray = (int)(c.R + c.G + c.B)/3;
+                int gray = (int)(c.R + c.G + c.B) / 3;
                 return Color.FromArgb(c.A, gray, gray, gray);
             });
 
@@ -229,6 +237,16 @@ namespace ImageProcessing
         // Dispose bitmaps on close
         protected override void OnFormClosing(FormClosingEventArgs e)
         {
+            try
+            {
+                if (currentDevice != null)
+                {
+                    currentDevice.Stop();
+                    currentDevice = null;
+                }
+            }
+            catch { }
+
             DisposeBitmaps();
             base.OnFormClosing(e);
         }
@@ -298,6 +316,174 @@ namespace ImageProcessing
             pictureBoxSubtraction.Image = resultImage;
             pictureBoxSubtraction.SizeMode = PictureBoxSizeMode.Zoom;
         }
+
+        private void startWebcamToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                if (webcamDevices == null || webcamDevices.Length == 0)
+                {
+                    MessageBox.Show("No webcam devices available.");
+                    return;
+                }
+
+                // Stop previous device (if any)
+                if (currentDevice != null)
+                {
+                    currentDevice.Stop();
+                    currentDevice = null;
+                }
+
+                // Choose selected device
+                int idx = comboBoxDevices.SelectedIndex;
+                if (idx < 0 || idx >= webcamDevices.Length) idx = 0;
+                currentDevice = webcamDevices[idx];
+
+                // Show live preview inside the panel (host control)
+                currentDevice.ShowWindow(panelWebcamHost);
+
+                startWebcamToolStripMenuItem.Enabled = false;
+                captureToolStripMenuItem.Enabled = true; // enable only after starts
+                stopWebcamToolStripMenuItem.Enabled = true; //hello
+                comboBoxDevices.SelectedIndex = 0;
+
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Error starting webcam: " + ex.Message);
+            }
+        }
+
+        private void stopWebcamToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                if (currentDevice != null)
+                {
+                    currentDevice.Stop();
+                    currentDevice = null;
+                }
+
+                panelWebcamHost.Visible = false;
+                comboBoxDevices.Visible = false;
+
+                startWebcamToolStripMenuItem.Enabled = true;
+                captureToolStripMenuItem.Enabled = false; // enable only after start
+                stopWebcamToolStripMenuItem.Enabled = false;
+
+                // Optionally clear the panel (will remove child window)
+                panelWebcamHost.Invalidate();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Error stopping webcam: " + ex.Message);
+            }
+        }
+
+        private void captureToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            if (currentDevice == null)
+            {
+                MessageBox.Show("Start the webcam first.");
+                return;
+            }
+
+            try
+            {
+                // Ask the driver to copy current frame to clipboard
+                currentDevice.Sendmessage(); // WM_CAP_EDIT_COPY
+
+                // Wait briefly for the clipboard to receive the image.
+                // We'll try a few times (non-blocking UI by using small sleeps + DoEvents).
+                Image captured = null;
+                int attempts = 0;
+                const int maxAttempts = 10;
+                while (attempts < maxAttempts)
+                {
+                    if (Clipboard.ContainsImage())
+                    {
+                        captured = Clipboard.GetImage();
+                        break;
+                    }
+                    Thread.Sleep(50);
+                    Application.DoEvents();
+                    attempts++;
+                }
+
+                if (captured == null)
+                {
+                    MessageBox.Show("Capture failed — clipboard has no image. Try again.");
+                    return;
+                }
+
+                // Put captured image into your processing pipeline:
+                // dispose existing bitmaps safely (uses your DisposeBitmaps helper)
+                DisposeBitmaps(); // (from your original code: disposes originalBitmap & processedBitmap)
+
+                originalBitmap = new Bitmap(captured);   // set original image for processing
+                processedBitmap = null;
+
+                pictureBoxOriginal.Image = originalBitmap;
+                pictureBoxOriginal.SizeMode = PictureBoxSizeMode.Zoom;
+                pictureBoxProcessed.Image = null;
+                pictureBoxProcessed.SizeMode = PictureBoxSizeMode.Zoom;
+
+                // enable processing buttons
+                SetProcessingButtonsEnabled(true);
+
+                // If you only allow Save after processing, ensure btnSaveImage.Enabled = false;
+                saveImageToolStripMenuItem.Enabled = false;
+
+                // Clear histogram (if you have it)
+                if (chartHistogram != null)
+                {
+                    chartHistogram.Series["Red"].Points.Clear();
+                    chartHistogram.Series["Green"].Points.Clear();
+                    chartHistogram.Series["Blue"].Points.Clear();
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Capture error: " + ex.Message);
+            }
+        }
+
+        private void loadWebcamToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            // Populate webcams once
+            try
+            {
+                webcamDevices = DeviceManager.GetAllDevices(); // returns Device[]
+            }
+            catch
+            {
+                webcamDevices = new Device[0];
+            }
+            panelWebcamHost.Visible = true;
+            comboBoxDevices.Visible = true;
+
+            comboBoxDevices.Items.Clear();
+            if (webcamDevices.Length == 0)
+            {
+                comboBoxDevices.Items.Add("No video devices found");
+                comboBoxDevices.SelectedIndex = 0;
+                startWebcamToolStripMenuItem.Enabled = false;
+                captureToolStripMenuItem.Enabled = false;
+                stopWebcamToolStripMenuItem.Enabled = false;
+            }
+            else
+            {
+                foreach (var d in webcamDevices)
+                    comboBoxDevices.Items.Add(d.Name);
+
+                comboBoxDevices.SelectedIndex = 0;
+                startWebcamToolStripMenuItem.Enabled = true;
+                captureToolStripMenuItem.Enabled = false; // enable only after start
+                stopWebcamToolStripMenuItem.Enabled = false;
+            }
+        }
+
+        
 
         private void SetProcessingButtonsEnabled(bool enabled)
         {
