@@ -24,6 +24,10 @@ namespace ImageProcessing
         private Device[] webcamDevices = new Device[0];
         private Device currentDevice = null;
 
+        private System.Windows.Forms.Timer liveTimer; 
+        private bool liveMode = false; 
+        private string currentLiveFilter = "None";
+
 
         public DigitalImagerv1()
         {
@@ -79,6 +83,7 @@ namespace ImageProcessing
 
             pictureBoxOriginal.Image = null;
             pictureBoxProcessed.Image = null;
+            pictureBoxSubtraction.Image = null;
 
             chartHistogram.Series["Red"].Points.Clear();
             chartHistogram.Series["Green"].Points.Clear();
@@ -108,6 +113,7 @@ namespace ImageProcessing
             });
 
             SetProcessingButtonsEnabled(true);
+            currentLiveFilter = "Grayscale";
         }
 
         private void invertToolStripMenuItem_Click(object sender, EventArgs e)
@@ -119,6 +125,7 @@ namespace ImageProcessing
             });
 
             SetProcessingButtonsEnabled(true);
+            currentLiveFilter = "Invert";
         }
 
         private void sepiaToolStripMenuItem_Click(object sender, EventArgs e)
@@ -134,6 +141,7 @@ namespace ImageProcessing
             });
 
             SetProcessingButtonsEnabled(true);
+            currentLiveFilter = "Sepia";
         }
 
         private void histogramToolStripMenuItem_Click(object sender, EventArgs e)
@@ -254,12 +262,16 @@ namespace ImageProcessing
         // Menu: Load Image B (green background)
         private void loadImageBToolStripMenuItem_Click(object sender, EventArgs e)
         {
+
             if (openFileDialog2.ShowDialog() == DialogResult.OK)
             {
                 imageB = new Bitmap(openFileDialog2.FileName);
                 pictureBoxOriginal.Image = imageB;
                 pictureBoxOriginal.SizeMode = PictureBoxSizeMode.Zoom;
+                return;
             }
+
+            imageB = new Bitmap(pictureBoxProcessed.Image);
         }
 
         // Menu: Load Image A (original background)
@@ -270,7 +282,10 @@ namespace ImageProcessing
                 imageA = new Bitmap(openFileDialog3.FileName);
                 pictureBoxProcessed.Image = imageA;
                 pictureBoxProcessed.SizeMode = PictureBoxSizeMode.Zoom;
+                return;
             }
+
+            imageA = new Bitmap(pictureBoxProcessed.Image);
         }
 
 
@@ -321,6 +336,14 @@ namespace ImageProcessing
         {
             try
             {
+                // Always refresh device list before starting
+                webcamDevices = DeviceManager.GetAllDevices();  // <-- or your enumeration method
+                comboBoxDevices.Items.Clear();
+                foreach (var dev in webcamDevices)
+                {
+                    comboBoxDevices.Items.Add(dev.Name);
+                }
+
                 if (webcamDevices == null || webcamDevices.Length == 0)
                 {
                     MessageBox.Show("No webcam devices available.");
@@ -345,7 +368,8 @@ namespace ImageProcessing
                 startWebcamToolStripMenuItem.Enabled = false;
                 captureToolStripMenuItem.Enabled = true; // enable only after starts
                 stopWebcamToolStripMenuItem.Enabled = true; //hello
-                comboBoxDevices.SelectedIndex = 0;
+                
+                comboBoxDevices.SelectedIndex = idx;
 
             }
             catch (Exception ex)
@@ -483,7 +507,307 @@ namespace ImageProcessing
             }
         }
 
-        
+        private void smoothToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            if (originalBitmap == null) return;
+            processedBitmap?.Dispose();
+            processedBitmap = BitmapFilter.Smooth(originalBitmap, nWeight: 1);
+            pictureBoxProcessed.Image = processedBitmap;
+            saveImageToolStripMenuItem.Enabled = true;
+
+            currentLiveFilter = "Smooth";
+        }
+
+        private void gaussianBlurToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            if (originalBitmap == null) return;
+            processedBitmap?.Dispose();
+            processedBitmap = BitmapFilter.GaussianBlur(originalBitmap);
+            pictureBoxProcessed.Image = processedBitmap;
+            saveImageToolStripMenuItem.Enabled = true;
+
+            currentLiveFilter = "GaussianBlur";
+        }
+
+        private void sharpenToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            if (originalBitmap == null) return;
+            processedBitmap?.Dispose();
+            processedBitmap = BitmapFilter.Sharpen(originalBitmap);
+            pictureBoxProcessed.Image = processedBitmap;
+            saveImageToolStripMenuItem.Enabled = true;
+
+            currentLiveFilter = "Sharp";
+        }
+
+        private void meanRemovalToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            if (originalBitmap == null) return;
+            processedBitmap?.Dispose();
+            processedBitmap = BitmapFilter.MeanRemoval(originalBitmap);
+            pictureBoxProcessed.Image = processedBitmap;
+            saveImageToolStripMenuItem.Enabled = true;
+        }
+
+        private void embossLaplascianToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            if (originalBitmap == null) return;
+            processedBitmap?.Dispose();
+            processedBitmap = BitmapFilter.Emboss(originalBitmap);
+            pictureBoxProcessed.Image = processedBitmap;
+            saveImageToolStripMenuItem.Enabled = true;
+
+            currentLiveFilter = "EmbossLaplacian";
+        }
+
+        private void embossHorizontalVerticalToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            if (originalBitmap == null) return;
+            processedBitmap?.Dispose();
+            processedBitmap = BitmapFilter.EmbossHorzVert(originalBitmap);
+            pictureBoxProcessed.Image = processedBitmap;
+            saveImageToolStripMenuItem.Enabled = true;
+        }
+
+        private void embossAllDirectionToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            if (originalBitmap == null) return;
+            processedBitmap?.Dispose();
+            processedBitmap = BitmapFilter.EmbossAll(originalBitmap);
+            pictureBoxProcessed.Image = processedBitmap;
+            saveImageToolStripMenuItem.Enabled = true;
+        }
+
+        private void embossLossyToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            if (originalBitmap == null) return;
+            processedBitmap?.Dispose();
+            processedBitmap = BitmapFilter.EmbossLossy(originalBitmap);
+            pictureBoxProcessed.Image = processedBitmap;
+            saveImageToolStripMenuItem.Enabled = true;
+        }
+
+        private void embossHorizontalOnlyToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            if (originalBitmap == null) return;
+            processedBitmap?.Dispose();
+            processedBitmap = BitmapFilter.EmbossHorizontal(originalBitmap);
+            pictureBoxProcessed.Image = processedBitmap;
+            saveImageToolStripMenuItem.Enabled = true;
+        }
+
+        private void embossVerticalOnlyToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            if (originalBitmap == null) return;
+            processedBitmap?.Dispose();
+            processedBitmap = BitmapFilter.EmbossVertical(originalBitmap);
+            pictureBoxProcessed.Image = processedBitmap;
+            saveImageToolStripMenuItem.Enabled = true;
+        }
+
+        private void simpleBlurToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            if (originalBitmap == null) return;
+            processedBitmap?.Dispose();
+            processedBitmap = BitmapFilter.Blur(originalBitmap);
+            pictureBoxProcessed.Image = processedBitmap;
+            saveImageToolStripMenuItem.Enabled = true;
+        }
+
+        private void edgeEnhanceToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            if (originalBitmap == null) return;
+            processedBitmap?.Dispose();
+            processedBitmap = BitmapFilter.EdgeEnhance(originalBitmap);
+            pictureBoxProcessed.Image = processedBitmap;
+            saveImageToolStripMenuItem.Enabled = true;
+
+            currentLiveFilter = "EdgeEnhance";
+        }
+
+        private void liveWebcamFiltersToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            if (currentDevice == null) { MessageBox.Show("Start the webcam first."); return; }
+            if (!liveMode)
+            { 
+                // enable timer loop
+                liveTimer = new System.Windows.Forms.Timer(); liveTimer.Interval = 100; // 10 fps, adjust as needed
+                liveTimer.Tick += LiveTimer_Tick; 
+                liveTimer.Start(); 
+
+                liveMode = true; 
+                currentLiveFilter = "None"; // default
+            } else { 
+                // stop live mode
+                liveTimer.Stop(); 
+                liveMode = false; 
+            }
+        }
+
+        // Timer event: grabs frame from webcam and processes it
+        private void LiveTimer_Tick(object sender, EventArgs e)
+        {
+            try
+            {
+                currentDevice.Sendmessage(); // capture to clipboard
+                if (!Clipboard.ContainsImage())
+                {
+                    StopLiveMode();
+                    return;
+                }
+
+                using (Image frame = Clipboard.GetImage())
+                {
+                    if (frame == null)
+                    {
+                        StopLiveMode();
+                        return;
+                    }
+
+                    Bitmap liveOriginal = new Bitmap(frame);
+                    pictureBoxOriginal.Image = liveOriginal;
+                    pictureBoxOriginal.SizeMode = PictureBoxSizeMode.Zoom;
+
+                    Bitmap liveProcessed = null;
+
+                    switch (currentLiveFilter)
+                    {
+                        case "Grayscale": liveProcessed = ApplyGrayscale(liveOriginal); break;
+                        case "Invert": liveProcessed = ApplyInvert(liveOriginal); break;
+                        case "Sepia": liveProcessed = ApplySepia(liveOriginal); break;
+                        case "Blur": liveProcessed = BitmapFilter.Blur(liveOriginal); break;
+                        case "Sharp": liveProcessed = BitmapFilter.Sharpen(liveOriginal); break;
+                        case "GaussianBlur": liveProcessed = BitmapFilter.GaussianBlur(liveOriginal); break;
+                        case "EdgeEnhance": liveProcessed = BitmapFilter.EdgeEnhance(liveOriginal); break;
+                        case "EmbossLaplacian": liveProcessed = BitmapFilter.Emboss(liveOriginal); break;
+                        default: liveProcessed = (Bitmap)liveOriginal.Clone(); break;
+                    }
+
+                    if (liveProcessed != null)
+                    {
+                        pictureBoxProcessed.Image = liveProcessed;
+                        pictureBoxProcessed.SizeMode = PictureBoxSizeMode.Zoom;
+                    }
+                    else
+                    {
+                        StopLiveMode();
+                    }
+                }
+            }
+            catch
+            {
+                StopLiveMode(); // ensure it doesn't throw again
+            }
+        }
+
+
+        private void StopLiveMode()
+        {
+            // Stop timer only if it exists
+            if (liveTimer != null && liveTimer.Enabled)
+            {
+                liveTimer.Stop();
+            }
+
+            // Reset filter
+            currentLiveFilter = null;
+
+            // Dispose safely
+            if (pictureBoxOriginal.Image != null)
+            {
+                pictureBoxOriginal.Image.Dispose();
+                pictureBoxOriginal.Image = null;
+            }
+
+            if (pictureBoxProcessed.Image != null)
+            {
+                pictureBoxProcessed.Image.Dispose();
+                pictureBoxProcessed.Image = null;
+            }
+
+            // Refresh UI
+            pictureBoxOriginal.Refresh();
+            pictureBoxProcessed.Refresh();
+
+            // If device exists, release it
+            if (currentDevice != null)
+            {
+                try
+                {
+                    currentDevice.Stop(); // or Dispose() depending on your driver
+                    currentDevice = null;
+                }
+                catch
+                {
+                    // ignore cleanup error
+                }
+            }
+
+            // Re-enable normal file operations
+            SetProcessingButtonsEnabled(true);
+        }
+
+
+
+        private Bitmap ApplyGrayscale(Bitmap src)
+           {
+               Bitmap result = new Bitmap(src.Width, src.Height);
+
+               for (int y = 0; y < src.Height; y++)
+               {
+                   for (int x = 0; x < src.Width; x++)
+                    {
+                        Color c = src.GetPixel(x, y);
+                        int gray = (c.R + c.G + c.B) / 3;
+                        result.SetPixel(x, y, Color.FromArgb(c.A, gray, gray, gray));
+                    }
+                }
+
+                return result;
+            }
+        private Bitmap ApplyInvert(Bitmap src)
+        {
+            Bitmap result = new Bitmap(src.Width, src.Height);
+
+            for (int y = 0; y < src.Height; y++)
+            {
+                for (int x = 0; x < src.Width; x++)
+                {
+                    Color c = src.GetPixel(x, y);
+                    result.SetPixel(x, y,
+                        Color.FromArgb(c.A, 255 - c.R, 255 - c.G, 255 - c.B));
+                }
+            }
+
+            return result;
+        }
+
+        private Bitmap ApplySepia(Bitmap src)
+        {
+            Bitmap result = new Bitmap(src.Width, src.Height);
+
+            for (int y = 0; y < src.Height; y++)
+            {
+                for (int x = 0; x < src.Width; x++)
+                {
+                    Color c = src.GetPixel(x, y);
+
+                    int tr = (int)(0.393 * c.R + 0.769 * c.G + 0.189 * c.B);
+                    int tg = (int)(0.349 * c.R + 0.686 * c.G + 0.168 * c.B);
+                    int tb = (int)(0.272 * c.R + 0.534 * c.G + 0.131 * c.B);
+
+                    tr = Math.Min(255, tr);
+                    tg = Math.Min(255, tg);
+                    tb = Math.Min(255, tb);
+
+                    result.SetPixel(x, y, Color.FromArgb(c.A, tr, tg, tb));
+                }
+            }
+
+            return result;
+        }
+
+
 
         private void SetProcessingButtonsEnabled(bool enabled)
         {
@@ -497,6 +821,11 @@ namespace ImageProcessing
             saveImageToolStripMenuItem.Enabled = (processedBitmap != null);
         }
 
+        private void refreshToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            RefreshApplication();
+        }
+
         private Bitmap ResizeImage(Bitmap img, int width, int height)
         {
             Bitmap resized = new Bitmap(width, height);
@@ -506,6 +835,67 @@ namespace ImageProcessing
             }
             return resized;
         }
+
+        private void RefreshApplication()
+        {
+            try
+            {
+                // Stop live mode safely
+                if (liveTimer != null && liveTimer.Enabled)
+                    liveTimer.Stop();
+
+                currentLiveFilter = null;
+
+                // Dispose bitmaps
+                DisposeBitmaps();
+
+                // Clear picture boxes
+                if (pictureBoxOriginal.Image != null)
+                {
+                    pictureBoxOriginal.Image.Dispose();
+                    pictureBoxOriginal.Image = null;
+                }
+                if (pictureBoxProcessed.Image != null)
+                {
+                    pictureBoxProcessed.Image.Dispose();
+                    pictureBoxProcessed.Image = null;
+                }
+
+                pictureBoxOriginal.Refresh();
+                pictureBoxProcessed.Refresh();
+
+                // Clear histogram if you use one
+                if (chartHistogram != null)
+                {
+                    chartHistogram.Series["Red"].Points.Clear();
+                    chartHistogram.Series["Green"].Points.Clear();
+                    chartHistogram.Series["Blue"].Points.Clear();
+                }
+
+                // Reset device
+                if (currentDevice != null)
+                {
+                    try
+                    {
+                        currentDevice.Stop();
+                        currentDevice = null;
+                    }
+                    catch { }
+                }
+
+                // Reset UI state
+                SetProcessingButtonsEnabled(false);
+                saveImageToolStripMenuItem.Enabled = false;
+
+                // Reset form title (optional)
+                this.Text = "Image Processing App";
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Error refreshing application: " + ex.Message);
+            }
+        }
+
 
 
 
